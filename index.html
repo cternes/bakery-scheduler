@@ -216,7 +216,8 @@
       }
 
       .layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(260px, 0.9fr);
+        gap: 12px;
       }
 
       .step {
@@ -225,6 +226,20 @@
 
       .step label:first-child {
         grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .schedule-panel {
+        order: 1;
+      }
+
+      .editor-panel {
+        order: 2;
       }
     }
 
@@ -254,7 +269,7 @@
     </header>
 
     <div class="layout">
-      <section aria-labelledby="editor-title">
+      <section class="editor-panel" aria-labelledby="editor-title">
         <h2 id="editor-title">Plan bearbeiten</h2>
 
         <label class="start-row">
@@ -270,7 +285,7 @@
         </div>
       </section>
 
-      <section aria-labelledby="schedule-title">
+      <section class="schedule-panel" aria-labelledby="schedule-title">
         <h2 id="schedule-title">Zeitplan</h2>
         <div id="schedule"></div>
       </section>
