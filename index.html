@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Backplaner</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f3eb;
+      --panel: #ffffff;
+      --text: #26211b;
+      --muted: #6f665c;
+      --line: #ded6ca;
+      --accent: #9a4f22;
+      --accent-dark: #713814;
+      --soft: #f1e5d5;
+      --danger: #a6362a;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    main {
+      width: min(980px, 100%);
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    header {
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2rem, 7vw, 3.2rem);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 10px 24px rgba(70, 52, 30, 0.08);
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.1rem;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    input {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: var(--text);
+      background: #fff;
+      font: inherit;
+    }
+
+    input:focus {
+      outline: 3px solid rgba(154, 79, 34, 0.2);
+      border-color: var(--accent);
+    }
+
+    .start-row {
+      margin-bottom: 14px;
+    }
+
+    .steps {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) 86px 86px 44px;
+      gap: 8px;
+      align-items: end;
+      padding: 12px;
+      background: #fbf8f4;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .step:first-child .wait-field {
+      opacity: 0.45;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      min-height: 44px;
+      border: 0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      color: #fff;
+      background: var(--accent);
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: var(--accent-dark);
+    }
+
+    button.secondary {
+      color: var(--accent-dark);
+      background: var(--soft);
+    }
+
+    button.secondary:hover {
+      background: #ead8c3;
+    }
+
+    button.icon {
+      width: 44px;
+      padding: 0;
+      color: var(--danger);
+      background: transparent;
+      border: 1px solid var(--line);
+      font-size: 1.4rem;
+      line-height: 1;
+    }
+
+    button.icon:hover {
+      background: #fff0ed;
+    }
+
+    .day {
+      padding: 12px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .day:first-child {
+      padding-top: 0;
+      border-top: 0;
+    }
+
+    .day-title {
+      margin: 0 0 8px;
+      font-weight: 850;
+    }
+
+    .schedule-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .schedule-item {
+      display: grid;
+      grid-template-columns: 78px 1fr;
+      gap: 10px;
+      line-height: 1.35;
+    }
+
+    .time {
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+    }
+
+    .empty {
+      padding: 18px;
+      color: var(--muted);
+      background: #fbf8f4;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        padding: 18px 12px 28px;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .step {
+        grid-template-columns: 1fr 1fr 44px;
+      }
+
+      .step label:first-child {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 430px) {
+      section {
+        padding: 14px;
+      }
+
+      .step {
+        grid-template-columns: 1fr;
+      }
+
+      button.icon {
+        width: 100%;
+      }
+
+      .actions button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Backplaner</h1>
+    </header>
+
+    <div class="layout">
+      <section aria-labelledby="editor-title">
+        <h2 id="editor-title">Plan bearbeiten</h2>
+
+        <label class="start-row">
+          Startdatum und Uhrzeit
+          <input id="startDateTime" type="datetime-local">
+        </label>
+
+        <div id="steps" class="steps"></div>
+
+        <div class="actions">
+          <button id="addStep" type="button">Schritt hinzufügen</button>
+          <button id="loadSample" class="secondary" type="button">Beispiel laden</button>
+        </div>
+      </section>
+
+      <section aria-labelledby="schedule-title">
+        <h2 id="schedule-title">Zeitplan</h2>
+        <div id="schedule"></div>
+      </section>
+    </div>
+  </main>
+
+  <template id="stepTemplate">
+    <div class="step">
+      <label>
+        Schritt
+        <input class="step-name" type="text" placeholder="z. B. Hauptteig geknetet">
+      </label>
+      <label class="wait-field">
+        Warten h
+        <input class="wait-hours" type="number" min="0" step="1" inputmode="numeric">
+      </label>
+      <label class="wait-field">
+        Warten min
+        <input class="wait-minutes" type="number" min="0" step="5" inputmode="numeric">
+      </label>
+      <button class="icon remove-step" type="button" aria-label="Schritt entfernen">×</button>
+    </div>
+  </template>
+
+  <script>
+    const stepsEl = document.querySelector("#steps");
+    const scheduleEl = document.querySelector("#schedule");
+    const startDateTimeEl = document.querySelector("#startDateTime");
+    const stepTemplate = document.querySelector("#stepTemplate");
+
+    const sampleSteps = [
+      { name: "Sauerteig Stufe 1 angesetzt", hours: 0, minutes: 0 },
+      { name: "Sauerteig Stufe 2 angesetzt", hours: 18, minutes: 0 },
+      { name: "Kochstück angesetzt", hours: 0, minutes: 5 },
+      { name: "Hauptteig geknetet", hours: 4, minutes: 35 },
+      { name: "Kesselgare", hours: 0, minutes: 10 },
+      { name: "Teig rustikal geformt und in Gärkörbchen gelegt", hours: 0, minutes: 30 },
+      { name: "gebacken", hours: 2, minutes: 0 }
+    ];
+
+    function formatInputDate(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+
+    function getNextFridayAtFour() {
+      const date = new Date();
+      const daysUntilFriday = (5 - date.getDay() + 7) % 7;
+      date.setDate(date.getDate() + daysUntilFriday);
+      date.setHours(16, 0, 0, 0);
+      if (date < new Date()) {
+        date.setDate(date.getDate() + 7);
+      }
+      return date;
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function updateStepFields() {
+      [...stepsEl.querySelectorAll(".step")].forEach((step, index) => {
+        step.querySelectorAll(".wait-field input").forEach((input) => {
+          input.disabled = index === 0;
+        });
+      });
+    }
+
+    function addStep(step = { name: "", hours: 0, minutes: 0 }) {
+      const allSteps = readSteps();
+
+      const node = stepTemplate.content.firstElementChild.cloneNode(true);
+      node.querySelector(".step-name").value = step.name || `Schritt ${allSteps.length + 1}`;
+      node.querySelector(".wait-hours").value = step.hours || 0;
+      node.querySelector(".wait-minutes").value = step.minutes || 0;
+      stepsEl.append(node);
+      updateStepFields();
+      updateSchedule();
+    }
+
+    function readSteps() {
+      return [...stepsEl.querySelectorAll(".step")].map((step, index) => ({
+        name: step.querySelector(".step-name").value.trim(),
+        hours: index === 0 ? 0 : Number(step.querySelector(".wait-hours").value || 0),
+        minutes: index === 0 ? 0 : Number(step.querySelector(".wait-minutes").value || 0)
+      })).filter((step) => step.name);
+    }
+
+    function groupByDay(items) {
+      return items.reduce((groups, item) => {
+        const key = item.date.toLocaleDateString("de-CH");
+        let group = groups.find((entry) => entry.key === key);
+        if (!group) {
+          group = {
+            key,
+            title: item.date.toLocaleDateString("de-CH", { weekday: "long" }),
+            items: []
+          };
+          groups.push(group);
+        }
+        group.items.push(item);
+        return groups;
+      }, []);
+    }
+
+    function updateSchedule() {
+      const start = new Date(startDateTimeEl.value);
+      const steps = readSteps();
+
+      if (!startDateTimeEl.value || Number.isNaN(start.getTime()) || steps.length === 0) {
+        scheduleEl.innerHTML = '<div class="empty">Startzeit und mindestens einen Schritt eintragen.</div>';
+        return;
+      }
+
+      let current = new Date(start);
+      const schedule = steps.map((step, index) => {
+        if (index > 0) {
+          current = new Date(current.getTime() + ((step.hours * 60) + step.minutes) * 60 * 1000);
+        }
+        return {
+          name: step.name,
+          date: new Date(current)
+        };
+      });
+
+      const groups = groupByDay(schedule);
+      scheduleEl.innerHTML = groups.map((group) => `
+        <div class="day">
+          <h3 class="day-title">${group.title}</h3>
+          <ul class="schedule-list">
+            ${group.items.map((item) => `
+              <li class="schedule-item">
+                <span class="time">${item.date.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })} Uhr</span>
+                <span>${escapeHtml(item.name)}</span>
+              </li>
+            `).join("")}
+          </ul>
+        </div>
+      `).join("");
+    }
+
+    function loadSample() {
+      stepsEl.innerHTML = "";
+      startDateTimeEl.value = formatInputDate(getNextFridayAtFour());
+      sampleSteps.forEach(addStep);
+      updateSchedule();
+    }
+
+    stepsEl.addEventListener("input", updateSchedule);
+    startDateTimeEl.addEventListener("input", updateSchedule);
+
+    stepsEl.addEventListener("click", (event) => {
+      if (!event.target.classList.contains("remove-step")) {
+        return;
+      }
+      event.target.closest(".step").remove();
+      updateStepFields();
+      updateSchedule();
+    });
+
+    document.querySelector("#addStep").addEventListener("click", () => addStep());
+    document.querySelector("#loadSample").addEventListener("click", loadSample);
+
+
+    // init
+    addStep({ name: "Start", hours: 0, minutes: 0 });
+    addStep({ hours: 1, minutes: 0 });
+    startDateTimeEl.value = formatInputDate(new Date());
+    updateSchedule();
+    
+  </script>
+</body>
+</html>
