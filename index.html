@@ -297,6 +297,7 @@
         <div class="actions">
           <button id="addStep" type="button">Schritt hinzufügen</button>
           <button id="loadSample" class="secondary" type="button">Beispiel laden</button>
+          <button id="resetPlan" class="secondary" type="button">Zurücksetzen</button>
         </div>
       </section>
 
@@ -330,6 +331,11 @@
     const scheduleEl = document.querySelector("#schedule");
     const startDateTimeEl = document.querySelector("#startDateTime");
     const stepTemplate = document.querySelector("#stepTemplate");
+    const storageKey = "bakerySchedulerPlan";
+    const initialSteps = [
+      { name: "Start", hours: 0, minutes: 0 },
+      { name: "Schritt 2", hours: 1, minutes: 0 }
+    ];
 
     const sampleSteps = [
       { name: "Sauerteig Stufe 1 angesetzt", hours: 0, minutes: 0 },
@@ -378,16 +384,35 @@
       });
     }
 
-    function addStep(step = { name: "", hours: 0, minutes: 0 }) {
+    function getInitialData() {
+      return {
+        startDateTime: formatInputDate(new Date()),
+        steps: initialSteps
+      };
+    }
+
+    function addStep(step = { hours: 0, minutes: 0 }, shouldUpdate = true) {
       const allSteps = readSteps();
+      const name = Object.prototype.hasOwnProperty.call(step, "name") ? step.name : `Schritt ${allSteps.length + 1}`;
 
       const node = stepTemplate.content.firstElementChild.cloneNode(true);
-      node.querySelector(".step-name").value = step.name || `Schritt ${allSteps.length + 1}`;
+      node.querySelector(".step-name").value = name;
       node.querySelector(".wait-hours").value = step.hours || 0;
       node.querySelector(".wait-minutes").value = step.minutes || 0;
       stepsEl.append(node);
       updateStepFields();
-      updateSchedule();
+      if (shouldUpdate) {
+        updateSchedule();
+        savePlan();
+      }
+    }
+
+    function readFormSteps() {
+      return [...stepsEl.querySelectorAll(".step")].map((step, index) => ({
+        name: step.querySelector(".step-name").value,
+        hours: index === 0 ? 0 : Number(step.querySelector(".wait-hours").value || 0),
+        minutes: index === 0 ? 0 : Number(step.querySelector(".wait-minutes").value || 0)
+      }));
     }
 
     function readSteps() {
@@ -451,15 +476,62 @@
       `).join("");
     }
 
-    function loadSample() {
+    function savePlan() {
+      localStorage.setItem(storageKey, JSON.stringify({
+        startDateTime: startDateTimeEl.value,
+        steps: readFormSteps()
+      }));
+    }
+
+    function renderPlan(data) {
       stepsEl.innerHTML = "";
-      startDateTimeEl.value = formatInputDate(getNextFridayAtFour());
-      sampleSteps.forEach(addStep);
+      startDateTimeEl.value = data.startDateTime;
+      data.steps.forEach((step) => addStep(step, false));
+      updateStepFields();
       updateSchedule();
     }
 
-    stepsEl.addEventListener("input", updateSchedule);
-    startDateTimeEl.addEventListener("input", updateSchedule);
+    function loadSavedPlan() {
+      const saved = localStorage.getItem(storageKey);
+      if (!saved) {
+        renderPlan(getInitialData());
+        return;
+      }
+
+      try {
+        const data = JSON.parse(saved);
+        renderPlan({
+          startDateTime: data.startDateTime || formatInputDate(new Date()),
+          steps: Array.isArray(data.steps) && data.steps.length > 0 ? data.steps : initialSteps
+        });
+      } catch {
+        localStorage.removeItem(storageKey);
+        renderPlan(getInitialData());
+      }
+    }
+
+    function loadSample() {
+      renderPlan({
+        startDateTime: formatInputDate(getNextFridayAtFour()),
+        steps: sampleSteps
+      });
+      savePlan();
+    }
+
+    function resetPlan() {
+      localStorage.removeItem(storageKey);
+      renderPlan(getInitialData());
+    }
+
+    stepsEl.addEventListener("input", () => {
+      updateSchedule();
+      savePlan();
+    });
+
+    startDateTimeEl.addEventListener("input", () => {
+      updateSchedule();
+      savePlan();
+    });
 
     stepsEl.addEventListener("click", (event) => {
       if (!event.target.classList.contains("remove-step")) {
@@ -468,18 +540,14 @@
       event.target.closest(".step").remove();
       updateStepFields();
       updateSchedule();
+      savePlan();
     });
 
     document.querySelector("#addStep").addEventListener("click", () => addStep());
     document.querySelector("#loadSample").addEventListener("click", loadSample);
+    document.querySelector("#resetPlan").addEventListener("click", resetPlan);
 
-
-    // init
-    addStep({ name: "Start", hours: 0, minutes: 0 });
-    addStep({ hours: 1, minutes: 0 });
-    startDateTimeEl.value = formatInputDate(new Date());
-    updateSchedule();
-    
+    loadSavedPlan();
   </script>
 </body>
 </html>
