@@ -133,10 +133,6 @@
       border-radius: 8px;
     }
 
-    .step:first-child .wait-field {
-      opacity: 0.45;
-    }
-
     .actions {
       display: flex;
       flex-wrap: wrap;
@@ -314,13 +310,13 @@
         Schritt
         <input class="step-name" type="text" placeholder="z. B. Hauptteig geknetet">
       </label>
-      <label class="wait-field">
-        Warten h
-        <input class="wait-hours" type="number" min="0" step="1" inputmode="numeric">
+      <label>
+        Dauer h
+        <input class="duration-hours" type="number" min="0" step="1" inputmode="numeric">
       </label>
-      <label class="wait-field">
-        Warten min
-        <input class="wait-minutes" type="number" min="0" step="5" inputmode="numeric">
+      <label>
+        Dauer min
+        <input class="duration-minutes" type="number" min="0" step="5" inputmode="numeric">
       </label>
       <button class="icon remove-step" type="button" aria-label="Schritt entfernen">×</button>
     </div>
@@ -333,18 +329,18 @@
     const stepTemplate = document.querySelector("#stepTemplate");
     const storageKey = "bakerySchedulerPlan";
     const initialSteps = [
-      { name: "Start", hours: 0, minutes: 0 },
-      { name: "Schritt 2", hours: 1, minutes: 0 }
+      { name: "Start", hours: 1, minutes: 0 },
+      { name: "Schritt 2", hours: 0, minutes: 0 }
     ];
 
     const sampleSteps = [
-      { name: "Sauerteig Stufe 1 angesetzt", hours: 0, minutes: 0 },
-      { name: "Sauerteig Stufe 2 angesetzt", hours: 18, minutes: 0 },
-      { name: "Kochstück angesetzt", hours: 0, minutes: 5 },
-      { name: "Hauptteig geknetet", hours: 4, minutes: 35 },
-      { name: "Kesselgare", hours: 0, minutes: 10 },
-      { name: "Teig rustikal geformt und in Gärkörbchen gelegt", hours: 0, minutes: 30 },
-      { name: "gebacken", hours: 2, minutes: 0 }
+      { name: "Sauerteig Stufe 1 angesetzt", hours: 18, minutes: 0 },
+      { name: "Sauerteig Stufe 2 angesetzt", hours: 0, minutes: 5 },
+      { name: "Kochstück angesetzt", hours: 4, minutes: 35 },
+      { name: "Hauptteig geknetet", hours: 0, minutes: 10 },
+      { name: "Kesselgare", hours: 0, minutes: 30 },
+      { name: "Teig rustikal geformt und in Gärkörbchen gelegt", hours: 2, minutes: 0 },
+      { name: "gebacken", hours: 0, minutes: 0 }
     ];
 
     function formatInputDate(date) {
@@ -378,9 +374,8 @@
 
     function updateStepFields() {
       [...stepsEl.querySelectorAll(".step")].forEach((step, index) => {
-        step.querySelectorAll(".wait-field input").forEach((input) => {
-          input.disabled = index === 0;
-        });
+        const removeButton = step.querySelector(".remove-step");
+        removeButton.disabled = index === 0 && stepsEl.querySelectorAll(".step").length === 1;
       });
     }
 
@@ -397,8 +392,8 @@
 
       const node = stepTemplate.content.firstElementChild.cloneNode(true);
       node.querySelector(".step-name").value = name;
-      node.querySelector(".wait-hours").value = step.hours || 0;
-      node.querySelector(".wait-minutes").value = step.minutes || 0;
+      node.querySelector(".duration-hours").value = step.hours || 0;
+      node.querySelector(".duration-minutes").value = step.minutes || 0;
       stepsEl.append(node);
       updateStepFields();
       if (shouldUpdate) {
@@ -408,18 +403,18 @@
     }
 
     function readFormSteps() {
-      return [...stepsEl.querySelectorAll(".step")].map((step, index) => ({
+      return [...stepsEl.querySelectorAll(".step")].map((step) => ({
         name: step.querySelector(".step-name").value,
-        hours: index === 0 ? 0 : Number(step.querySelector(".wait-hours").value || 0),
-        minutes: index === 0 ? 0 : Number(step.querySelector(".wait-minutes").value || 0)
+        hours: Number(step.querySelector(".duration-hours").value || 0),
+        minutes: Number(step.querySelector(".duration-minutes").value || 0)
       }));
     }
 
     function readSteps() {
-      return [...stepsEl.querySelectorAll(".step")].map((step, index) => ({
+      return [...stepsEl.querySelectorAll(".step")].map((step) => ({
         name: step.querySelector(".step-name").value.trim(),
-        hours: index === 0 ? 0 : Number(step.querySelector(".wait-hours").value || 0),
-        minutes: index === 0 ? 0 : Number(step.querySelector(".wait-minutes").value || 0)
+        hours: Number(step.querySelector(".duration-hours").value || 0),
+        minutes: Number(step.querySelector(".duration-minutes").value || 0)
       })).filter((step) => step.name);
     }
 
@@ -450,14 +445,13 @@
       }
 
       let current = new Date(start);
-      const schedule = steps.map((step, index) => {
-        if (index > 0) {
-          current = new Date(current.getTime() + ((step.hours * 60) + step.minutes) * 60 * 1000);
-        }
-        return {
+      const schedule = steps.map((step) => {
+        const item = {
           name: step.name,
           date: new Date(current)
         };
+        current = new Date(current.getTime() + ((step.hours * 60) + step.minutes) * 60 * 1000);
+        return item;
       });
 
       const groups = groupByDay(schedule);
@@ -478,9 +472,21 @@
 
     function savePlan() {
       localStorage.setItem(storageKey, JSON.stringify({
+        version: 2,
         startDateTime: startDateTimeEl.value,
         steps: readFormSteps()
       }));
+    }
+
+    function migrateWaitingSteps(steps) {
+      return steps.map((step, index) => {
+        const nextStep = steps[index + 1];
+        return {
+          name: step.name,
+          hours: nextStep ? Number(nextStep.hours || 0) : 0,
+          minutes: nextStep ? Number(nextStep.minutes || 0) : 0
+        };
+      });
     }
 
     function renderPlan(data) {
@@ -500,10 +506,12 @@
 
       try {
         const data = JSON.parse(saved);
+        const savedSteps = Array.isArray(data.steps) && data.steps.length > 0 ? data.steps : initialSteps;
         renderPlan({
           startDateTime: data.startDateTime || formatInputDate(new Date()),
-          steps: Array.isArray(data.steps) && data.steps.length > 0 ? data.steps : initialSteps
+          steps: data.version === 2 ? savedSteps : migrateWaitingSteps(savedSteps)
         });
+        savePlan();
       } catch {
         localStorage.removeItem(storageKey);
         renderPlan(getInitialData());
