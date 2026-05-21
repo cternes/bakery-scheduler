@@ -115,6 +115,27 @@
       margin-bottom: 14px;
     }
 
+    .mode-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 14px;
+      padding: 4px;
+      background: var(--soft);
+      border-radius: 8px;
+    }
+
+    .mode-switch button {
+      min-height: 40px;
+      color: var(--accent-dark);
+      background: transparent;
+    }
+
+    .mode-switch button[aria-pressed="true"] {
+      color: #fff;
+      background: var(--accent);
+    }
+
     .steps {
       display: grid;
       gap: 10px;
@@ -131,6 +152,16 @@
       background: #fbf8f4;
       border: 1px solid var(--line);
       border-radius: 8px;
+    }
+
+    body[data-mode="exact"] .step {
+      grid-template-columns: minmax(150px, 1fr) minmax(210px, 0.8fr) 44px;
+    }
+
+    body[data-mode="duration"] .exact-field,
+    body[data-mode="exact"] .duration-field,
+    body[data-mode="exact"] .start-row {
+      display: none;
     }
 
     .actions {
@@ -153,6 +184,7 @@
 
     button:hover {
       background: var(--accent-dark);
+      color: white;
     }
 
     button.secondary {
@@ -235,6 +267,10 @@
         grid-template-columns: 1fr 1fr 44px;
       }
 
+      body[data-mode="exact"] .step {
+        grid-template-columns: 1fr 1fr 44px;
+      }
+
       .step label:first-child {
         grid-column: 1 / -1;
       }
@@ -263,6 +299,10 @@
         grid-template-columns: 1fr;
       }
 
+      body[data-mode="exact"] .step {
+        grid-template-columns: 1fr;
+      }
+
       button.icon {
         width: 100%;
       }
@@ -273,7 +313,7 @@
     }
   </style>
 </head>
-<body>
+<body data-mode="duration">
   <main>
     <header>
       <h1>Backplaner</h1>
@@ -282,6 +322,11 @@
     <div class="layout">
       <section class="editor-panel" aria-labelledby="editor-title">
         <h2 id="editor-title">Plan bearbeiten</h2>
+
+        <div class="mode-switch" role="group" aria-label="Zeitmodus">
+          <button class="mode-button" type="button" data-mode="duration" aria-pressed="true">Dauer</button>
+          <button class="mode-button" type="button" data-mode="exact" aria-pressed="false">Exakte Zeiten</button>
+        </div>
 
         <label class="start-row">
           Startdatum und Uhrzeit
@@ -310,13 +355,17 @@
         Schritt
         <input class="step-name" type="text" placeholder="z. B. Hauptteig geknetet">
       </label>
-      <label>
+      <label class="duration-field">
         Dauer h
         <input class="duration-hours" type="number" min="0" step="1" inputmode="numeric">
       </label>
-      <label>
+      <label class="duration-field">
         Dauer min
         <input class="duration-minutes" type="number" min="0" step="5" inputmode="numeric">
+      </label>
+      <label class="exact-field">
+        Exakte Zeit
+        <input class="exact-time" type="datetime-local">
       </label>
       <button class="icon remove-step" type="button" aria-label="Schritt entfernen">×</button>
     </div>
@@ -327,7 +376,9 @@
     const scheduleEl = document.querySelector("#schedule");
     const startDateTimeEl = document.querySelector("#startDateTime");
     const stepTemplate = document.querySelector("#stepTemplate");
+    const modeButtons = document.querySelectorAll(".mode-button");
     const storageKey = "bakerySchedulerPlan";
+    let currentMode = "duration";
     const initialSteps = [
       { name: "Start", hours: 1, minutes: 0 },
       { name: "Schritt 2", hours: 0, minutes: 0 }
@@ -381,6 +432,7 @@
 
     function getInitialData() {
       return {
+        mode: "duration",
         startDateTime: formatInputDate(new Date()),
         steps: initialSteps
       };
@@ -394,6 +446,7 @@
       node.querySelector(".step-name").value = name;
       node.querySelector(".duration-hours").value = step.hours || 0;
       node.querySelector(".duration-minutes").value = step.minutes || 0;
+      node.querySelector(".exact-time").value = step.exactTime || "";
       stepsEl.append(node);
       updateStepFields();
       if (shouldUpdate) {
@@ -406,7 +459,8 @@
       return [...stepsEl.querySelectorAll(".step")].map((step) => ({
         name: step.querySelector(".step-name").value,
         hours: Number(step.querySelector(".duration-hours").value || 0),
-        minutes: Number(step.querySelector(".duration-minutes").value || 0)
+        minutes: Number(step.querySelector(".duration-minutes").value || 0),
+        exactTime: step.querySelector(".exact-time").value
       }));
     }
 
@@ -414,7 +468,8 @@
       return [...stepsEl.querySelectorAll(".step")].map((step) => ({
         name: step.querySelector(".step-name").value.trim(),
         hours: Number(step.querySelector(".duration-hours").value || 0),
-        minutes: Number(step.querySelector(".duration-minutes").value || 0)
+        minutes: Number(step.querySelector(".duration-minutes").value || 0),
+        exactTime: step.querySelector(".exact-time").value
       })).filter((step) => step.name);
     }
 
@@ -435,17 +490,9 @@
       }, []);
     }
 
-    function updateSchedule() {
-      const start = new Date(startDateTimeEl.value);
-      const steps = readSteps();
-
-      if (!startDateTimeEl.value || Number.isNaN(start.getTime()) || steps.length === 0) {
-        scheduleEl.innerHTML = '<div class="empty">Startzeit und mindestens einen Schritt eintragen.</div>';
-        return;
-      }
-
+    function getDurationSchedule(start, steps) {
       let current = new Date(start);
-      const schedule = steps.map((step) => {
+      return steps.map((step) => {
         const item = {
           name: step.name,
           date: new Date(current)
@@ -453,6 +500,33 @@
         current = new Date(current.getTime() + ((step.hours * 60) + step.minutes) * 60 * 1000);
         return item;
       });
+    }
+
+    function getExactSchedule(steps) {
+      return steps
+        .filter((step) => step.exactTime !== "")
+        .map((step) => ({
+          name: step.name,
+          date: new Date(step.exactTime)
+        }))
+        .filter((step) => !Number.isNaN(step.date.getTime()));
+    }
+
+    function updateSchedule() {
+      const start = new Date(startDateTimeEl.value);
+      const steps = readSteps();
+
+      if (steps.length === 0 || (currentMode === "duration" && (!startDateTimeEl.value || Number.isNaN(start.getTime())))) {
+        scheduleEl.innerHTML = '<div class="empty">Startzeit und mindestens einen Schritt eintragen.</div>';
+        return;
+      }
+
+      const schedule = currentMode === "duration" ? getDurationSchedule(start, steps) : getExactSchedule(steps);
+
+      if (schedule.length === 0) {
+        scheduleEl.innerHTML = '<div class="empty">Mindestens einen Schritt mit exakter Zeit eintragen.</div>';
+        return;
+      }
 
       const groups = groupByDay(schedule);
       scheduleEl.innerHTML = groups.map((group) => `
@@ -472,7 +546,8 @@
 
     function savePlan() {
       localStorage.setItem(storageKey, JSON.stringify({
-        version: 2,
+        version: 3,
+        mode: currentMode,
         startDateTime: startDateTimeEl.value,
         steps: readFormSteps()
       }));
@@ -489,8 +564,69 @@
       });
     }
 
+    function updateModeUi() {
+      document.body.dataset.mode = currentMode;
+      modeButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.mode === currentMode));
+      });
+    }
+
+    function fillExactTimesFromDurations() {
+      let current = new Date(startDateTimeEl.value);
+      if (!startDateTimeEl.value || Number.isNaN(current.getTime())) {
+        current = new Date();
+        startDateTimeEl.value = formatInputDate(current);
+      }
+
+      [...stepsEl.querySelectorAll(".step")].forEach((step) => {
+        step.querySelector(".exact-time").value = formatInputDate(current);
+        const hours = Number(step.querySelector(".duration-hours").value || 0);
+        const minutes = Number(step.querySelector(".duration-minutes").value || 0);
+        current = new Date(current.getTime() + ((hours * 60) + minutes) * 60 * 1000);
+      });
+    }
+
+    function fillDurationsFromExactTimes() {
+      const rows = [...stepsEl.querySelectorAll(".step")];
+      const dates = rows.map((step) => new Date(step.querySelector(".exact-time").value));
+
+      if (dates[0] && !Number.isNaN(dates[0].getTime())) {
+        startDateTimeEl.value = formatInputDate(dates[0]);
+      }
+
+      rows.forEach((step, index) => {
+        const current = dates[index];
+        const next = dates[index + 1];
+        const diffMinutes = current && next && !Number.isNaN(current.getTime()) && !Number.isNaN(next.getTime())
+          ? Math.max(0, Math.round((next.getTime() - current.getTime()) / 60000))
+          : 0;
+
+        step.querySelector(".duration-hours").value = Math.floor(diffMinutes / 60);
+        step.querySelector(".duration-minutes").value = diffMinutes % 60;
+      });
+    }
+
+    function setMode(mode) {
+      if (mode === currentMode) {
+        return;
+      }
+
+      if (mode === "exact") {
+        fillExactTimesFromDurations();
+      } else {
+        fillDurationsFromExactTimes();
+      }
+
+      currentMode = mode;
+      updateModeUi();
+      updateSchedule();
+      savePlan();
+    }
+
     function renderPlan(data) {
       stepsEl.innerHTML = "";
+      currentMode = data.mode || "duration";
+      updateModeUi();
       startDateTimeEl.value = data.startDateTime;
       data.steps.forEach((step) => addStep(step, false));
       updateStepFields();
@@ -508,8 +644,9 @@
         const data = JSON.parse(saved);
         const savedSteps = Array.isArray(data.steps) && data.steps.length > 0 ? data.steps : initialSteps;
         renderPlan({
+          mode: data.version === 3 ? data.mode || "duration" : "duration",
           startDateTime: data.startDateTime || formatInputDate(new Date()),
-          steps: data.version === 2 ? savedSteps : migrateWaitingSteps(savedSteps)
+          steps: data.version === 2 || data.version === 3 ? savedSteps : migrateWaitingSteps(savedSteps)
         });
         savePlan();
       } catch {
@@ -520,6 +657,7 @@
 
     function loadSample() {
       renderPlan({
+        mode: "duration",
         startDateTime: formatInputDate(getNextFridayAtFour()),
         steps: sampleSteps
       });
@@ -554,6 +692,9 @@
     document.querySelector("#addStep").addEventListener("click", () => addStep());
     document.querySelector("#loadSample").addEventListener("click", loadSample);
     document.querySelector("#resetPlan").addEventListener("click", resetPlan);
+    modeButtons.forEach((button) => {
+      button.addEventListener("click", () => setMode(button.dataset.mode));
+    });
 
     loadSavedPlan();
   </script>
